@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 # Project exclude paths
 /venv/
 /.idea/
 __pycache__/
+=======
+__pycache__/
+/venv
+.idea
+.DS_Store
+>>>>>>> refs/remotes/origin/master
