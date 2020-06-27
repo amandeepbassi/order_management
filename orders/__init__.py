@@ -1,6 +1,5 @@
 from sanic import Sanic
 app = Sanic(__name__)
-
 database_name = 'ordermgt'
 database_host = 'localhost'
 database_user = 'postgres'
@@ -13,5 +12,5 @@ connection = 'postgres://{0}:{1}@{2}/{3}'.format(database_user,
 
 
 
-from orders.orderbook.order_book import ob
+from orders.order_book import ob
 app.blueprint(ob)
