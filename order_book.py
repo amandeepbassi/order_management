@@ -1,8 +1,8 @@
 from sanic import Blueprint
 from sanic.response import json
 from aiopg.sa import create_engine
-from orders import connection
-from orders.models import orderbook, order_datails
+from config import connection
+from models import orderbook, order_datails
 import json as dict_json
 import requests
 
