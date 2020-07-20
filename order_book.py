@@ -1,21 +1,22 @@
 from sanic import Blueprint
 from sanic.response import json, json_dumps
 from aiopg.sa import create_engine
-from config import connection
-from models import orderbook, order_datails
+from config import Config
+from model import tb_orderbook, tb_order_details, connection
+from sanic.exceptions import NotFound, ServerError
 import json as dict_json
 import requests
 from stock_management import StockManagement
 
 # app=Sanic('__main__')
-ob = Blueprint("order_book")
+bp_order_book = Blueprint("order_book")
 
-@ob.route('/order_book', methods=['GET', "POST"])
+@bp_order_book.route('/order-book', methods=['GET', "POST"])
 async def order_book(request):
     async with create_engine(connection) as engine:
         async with engine.acquire() as conn:
             last_row = await (await conn.execute(
-                orderbook.select().order_by(orderbook.select().columns['id'].desc()))).fetchone()
+                tb_orderbook.select().order_by(tb_orderbook.select().columns['id'].desc()))).fetchone()
             last_id = last_row.id
 
             if request.method == "POST":
@@ -58,9 +59,9 @@ async def order_book(request):
                         # print(dict_json.dumps(details))
                             result.update({order_no: {"product": product_id, "quantity": quantity_ordered, "status": 'confirmed'}})
                             await conn.execute(
-                                orderbook.insert().values(id=order_id, customer_id=customer_id, status="confirmed"))
+                                tb_orderbook.insert().values(id=order_id, customer_id=customer_id, status="confirmed"))
                             await conn.execute(
-                                order_datails.insert().values(order_id=order_id, details=json_dumps(
+                                tb_order_details.insert().values(order_id=order_id, details=json_dumps(
                                     {"product": product_id, "price":price, "quantity": quantity_ordered})))
                             order_id+=1
                         else:
@@ -70,6 +71,13 @@ async def order_book(request):
             else:
                 return json({"message": "I am get method"})
 
+@bp_order_book.exception(NotFound)
+async def ignore_404(request, exception):
+    return json({"Not Found": "Page Not Found"}, status=404)
 
+
+@bp_order_book.exception(ServerError)
+async def ignore_503(request, exception):
+    return json({"Server Error": "503 internal server error"}, status=503)
 
 
