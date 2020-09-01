@@ -10,25 +10,23 @@ database_password = Config.DATABASE_PASSWORD
 connection = 'postgres://{0}:{1}@{2}/{3}'.format(
     database_user, database_password, database_host, database_name)
 
-metadata = sa.MetaData()
-tb_orderbook = sa.Table('tb_orderbook', metadata,
-                        sa.Column('id', sa.Integer, primary_key=True),
-                        sa.Column('customer_id', sa.Integer),
-                        sa.Column('datetime', sa.TIMESTAMP)
-                        )
 
-tb_order_details = sa.Table('tb_order_details', metadata,
-                            sa.Column('order_details_id', sa.Integer, primary_key=True),
-                            sa.Column('order_id', None, sa.ForeignKey('orderbook.id')),
-                            sa.Column('details', sa.Text)
-                            )
+order_book = sa.Table('tb_order_book', sa.MetaData(),
+                    sa.Column('ob_id', sa.String, primary_key=True),
+                    sa.Column('ob_timestamp', sa.TIMESTAMP, nullable=False),
+                    sa.Column('ob_customer_id', sa.String, nullable=False),
+                    sa.Column('ob_product_id', sa.String, nullable=False),
+                    sa.Column('ob_vendor_id', sa.String, nullable=False),
+                    sa.Column('ob_product_quantity', sa.Integer, nullable=False),
+                    sa.Column('ob_product_price', sa.Float, nullable=False),
+                    sa.Column('ob_status', sa.VARCHAR(50), nullable=False))
 
-tb_order_status = sa.Table('tb_order_status', metadata,
-                           sa.Column('status_id', sa.Integer, primary_key=True),
-                           sa.Column('order_id2', None, sa.ForeignKey('orderbook.id')),
-                           sa.Column('date', sa.Date),
-                           sa.Column('time', sa.Time),
-                           sa.Column('status', sa.Text)
-                           )
 
-quantity_available_uri = 'http://0.0.0.0:8000/quantity_available'
+order_status = sa.Table('tb_order_status', sa.MetaData(),
+                        sa.Column('os_id', sa.String, primary_key=True),
+                        sa.Column('os_timestamp', sa.TIMESTAMP, nullable=False),
+                        sa.Column('os_order_book_id', sa.String, nullable=False),
+                        sa.Column('os_order_status', sa.VARCHAR(50), nullable=False))
+
+                           
+

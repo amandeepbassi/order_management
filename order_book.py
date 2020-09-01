@@ -1,75 +1,81 @@
 from sanic import Blueprint
-from sanic.response import json, json_dumps
+from sanic.response import json
 from aiopg.sa import create_engine
 from config import Config
-from model import tb_orderbook, tb_order_details, connection
+from model import order_book, connection
 from sanic.exceptions import NotFound, ServerError
-import json as dict_json
+from sqlalchemy import select, func
+import json as regularjson
+
 import requests
-from stock_management import StockManagement
 
-# app=Sanic('__main__')
-bp_order_book = Blueprint("order_book")
 
-@bp_order_book.route('/order-book', methods=['GET', "POST"])
-async def order_book(request):
+
+bp_order_book = Blueprint("order_book_blueprint")
+
+@bp_order_book.route('/orderbook', methods=['POST'])
+async def order_book_value(request):
     async with create_engine(connection) as engine:
         async with engine.acquire() as conn:
-            last_row = await (await conn.execute(
-                tb_orderbook.select().order_by(tb_orderbook.select().columns['id'].desc()))).fetchone()
-            last_id = last_row.id
-
-            if request.method == "POST":
-                result = {}
-                data = request.json
-                order_id = last_id+1
-                customer_id = data['customer_id']
-                status = 'pending'
-                details = data['details']
-                # print(details)
-                # print(details.values())
-                products_available = []
-                products_unavailable = []
-                for order, value in details.items():
-                    order_no = order
-                    product_id = value['product']
-                    price = value['price']
-                    quantity_ordered = value['quantity']
-                    productavailable = StockManagement(product_id)
-                    quantity_available = int(productavailable.availablility())
-                    if quantity_available > quantity_ordered:
-                        products_available.append({product_id : "available"})
+            if request.method == 'POST':
+                results = {}
+                url_prefix = []
+                order_data = request.json['order']
+                for order in order_data:
+                    insert_query = order_book.insert(inline=True,returning=[order_book.c.ob_id]).values(order)
+                    try:
+                        result_id = await(await conn.execute(insert_query)).fetchone()
+                        url_prefix.append(str(Config.HOST_URL) + ":" + str(Config.HOST_PORT) + "/orderbook/" + str(result_id[0]))
+                        payload = {
+                            "net_stock_product_id": order['ob_product_id'],
+                            "net_stock_vendor_id": order['ob_vendor_id'],
+                            "transaction_type": "SUB",
+                            "product_update": order['ob_product_quantity']
+                        }
+                        r = requests.post(Config.NET_STOCK_URL, data = regularjson.dumps(payload))
+                        print(r.headers)
+                    except Exception as e_x:
+                        print(e_x)
+                        results = {"Inserted Values": "Values have been not successfully inserted",
+                                    "Error": str(e_x)}
                     else:
-                        products_unavailable.append({product_id: "unavailable"})
-                if len(products_unavailable) > 0:
-                    return json({"message": "Some products from you cart are not available","Products_available": products_available, "Products_unavailable": products_unavailable})
-                else:
-                    for order, value in details.items():
-                        order_no = order
-                        product_id = value['product']
-                        price = value['price']
-                        quantity_ordered = value['quantity']
-                        productavailable = StockManagement(product_id)
-                        quantity_available = int(productavailable.availablility())
-                        stock_left = quantity_available - quantity_ordered
-                        payload = {"stock_left": stock_left, "product_id": product_id, "quantity": quantity_ordered}
-                        rpost = requests.post('http://0.0.0.0:8000/update_inventory', data=json_dumps(payload))
-                        print(rpost.ok)
-                        if rpost.ok:
-                        # print(dict_json.dumps(details))
-                            result.update({order_no: {"product": product_id, "quantity": quantity_ordered, "status": 'confirmed'}})
-                            await conn.execute(
-                                tb_orderbook.insert().values(id=order_id, customer_id=customer_id, status="confirmed"))
-                            await conn.execute(
-                                tb_order_details.insert().values(order_id=order_id, details=json_dumps(
-                                    {"product": product_id, "price":price, "quantity": quantity_ordered})))
-                            order_id+=1
-                        else:
-                            return json({"message": "error in communicating microservices"})
-                return json(result)
+                        results = {"Inserted Values": "Values have been successfully inserted"}
+               
+                return json(results, headers={'URL': url_prefix}, status=201)
+         
 
-            else:
-                return json({"message": "I am get method"})
+@bp_order_book.route('/orderbook/<ob_id:string>', methods=['PUT', 'PATCH', 'GET'])
+async def update_order_book(request, ob_id):
+    async with create_engine(connection) as engine:
+        async with engine.acquire() as conn:
+            results = {}
+            if request.method == 'PUT' or request.method == 'PATCH':
+                update_query = order_book.update().values(request.json).where(order_book.c.ob_id == ob_id)       
+                result_value = await(await conn.execute(select([func.count(order_book.c.ob_id)]).where(order_book.c.ob_id == ob_id))).fetchone()
+                if str(result_value[0]) == "1":
+                    update_query = order_book.update().where(order_book.c.ob_id == ob_id).values(request.json)
+                    try:
+                        await conn.execute(update_query)
+                    except Exception as e_x:
+                        print(e_x)
+                        results = {"Updated Values": "Values have not been successfully updated",
+                        "exception": str(e_x)}
+                    else:
+                        results = {"Updated Values": "values have been successfully updated"}
+                else:
+                    results = {"Updated Values": "Values not found"}
+                return json(results, status=200)
+            elif request.method == 'GET':
+                select_query = order_book.select().where(order_book.c.ob_id == ob_id)
+                async for row in conn.execute(select_query):
+                    results.update(row)
+                    results.__setitem__('ob_id', str(results['ob_id']))
+                    results.__setitem__('ob_timestamp', str(results['ob_timestamp']))
+                    results.__setitem__('ob_customer_id', str(results['ob_customer_id']))
+                    results.__setitem__('ob_product_id', str(results['ob_product_id']))
+                    results.__setitem__('ob_vendor_id', str(results['ob_vendor_id']))
+                return json(results, status=200)
+
 
 @bp_order_book.exception(NotFound)
 async def ignore_404(request, exception):
