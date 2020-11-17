@@ -1,5 +1,5 @@
 import requests
-from config import quantity_available_uri
+from model import quantity_available_uri
 import json as dict_json
 
 
