@@ -1,5 +1,5 @@
 class Config(object):
-    HOST_URL = "192.168.1.7"
+    HOST_URL = "192.168.1.6"
     HOST_PORT = 9029
     ACCESS_LOG = False
     DATABASE_HOST = 'localhost'

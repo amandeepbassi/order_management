@@ -25,9 +25,9 @@ async def order_history(request, os_order_book_id):
             if request.method == 'GET':              
                 select_query = order_status.select().where(order_status.c.os_order_book_id == os_order_book_id)          
                 async for row in conn.execute(select_query):
-                    result = []
-                    result.append({"os_timestamp": str(row.os_timestamp), "os_order_status": str(row.os_order_status)})
-                    results.__setitem__(row['os_id'], result)
+                    result = {}
+                    result = {"os_id": str(row.os_id),"os_timestamp": str(row.os_timestamp), "os_order_status": str(row.os_order_status)}
+                    results.__setitem__(row['os_order_status'], result)
         return json(results, status=200)
 
 
